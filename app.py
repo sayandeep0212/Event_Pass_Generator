@@ -171,9 +171,9 @@ if uploaded_file is not None:
             
             preview_img = generate_pass_image(
                 first_member, 
-                first_reg.get('eventName', 'Event'), 
-                first_reg.get('registrationID', '000'), 
-                first_reg.get('teamName', 'N/A')
+                first_reg.get('eventName') or first_reg.get('event_name') or 'Event', 
+                first_reg.get('registrationID') or first_reg.get('id') or '000', 
+                first_reg.get('teamName') or first_reg.get('team_name') or 'N/A'
             )
             st.image(preview_img, caption="Preview of generated pass", width=600)
 
@@ -198,9 +198,10 @@ if uploaded_file is not None:
                 current_idx = 0
                 
                 for reg in registrations:
-                    event_name = reg.get('eventName', 'Event')
-                    reg_id = reg.get('registrationID', 'N/A')
-                    team_name = reg.get('teamName', 'Individual')
+                    # Defensive key reading
+                    event_name = reg.get('eventName') or reg.get('event_name') or 'Event'
+                    reg_id = reg.get('registrationID') or reg.get('id') or 'N/A'
+                    team_name = reg.get('teamName') or reg.get('team_name') or 'Individual'
                     
                     for member in reg.get('members', []):
                         email = member.get('email')
