@@ -1,15 +1,15 @@
 import streamlit as st
 import json
 import smtplib
+import os
 import qrcode
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 import time
 import io
-import platform
 
 # ================= CONFIGURATION =================
 PASS_SIZE = (1200, 700)
@@ -21,50 +21,14 @@ GOLD_COLOR = "#fbbf24"
 
 SOCIAL_LINKS = {
     "GitHub": "https://github.com/gameliminals",
-    "Discord": "https://discord.com/invite/5hZsZmcC",
+    "Discord": "https://discord.gg/7szdDMp4Hv",
     "Instagram": "https://www.instagram.com/gameliminals?igsh=b2V3NzRidDd3OHF6",
     "LinkedIn": "https://www.linkedin.com/company/gameliminals/",
     "Youtube": "https://www.youtube.com/@GameLiminals",
     "Facebook": "https://www.facebook.com/gameliminals"
 }
 
-# ================= HELPER FUNCTIONS =================
-
-def load_best_font(size):
-    """
-    Tries to load font.ttf first. 
-    If missing, tries system fonts (Arial/DejaVu).
-    """
-    fonts_to_try = ["font.ttf", "arial.ttf", "Arial.ttf", "DejaVuSans-Bold.ttf", "robot.ttf"]
-    
-    for font_name in fonts_to_try:
-        try:
-            return ImageFont.truetype(font_name, size)
-        except OSError:
-            continue
-            
-    # Final fallback (will be tiny, but we try to avoid this)
-    return ImageFont.load_default()
-
-def make_rounded_logo(img, radius=20):
-    """
-    Rounds the corners of the logo to make it look cleaner
-    even if it has a white background.
-    """
-    img = img.convert("RGBA")
-    
-    # Create a mask (white circle/rounded box)
-    mask = Image.new('L', img.size, 0)
-    draw = ImageDraw.Draw(mask)
-    
-    # Draw rounded rectangle on mask
-    draw.rounded_rectangle([(0, 0), img.size], radius=radius, fill=255)
-    
-    # Apply mask
-    output = ImageOps.fit(img, img.size, centering=(0.5, 0.5))
-    output.putalpha(mask)
-    return output
-
+# ================= LOGIC FUNCTIONS =================
 def create_gradient(width, height, c1, c2):
     base = Image.new('RGB', (width, height), c1)
     top = Image.new('RGB', (width, height), c2)
@@ -77,66 +41,55 @@ def create_gradient(width, height, c1, c2):
     return base
 
 def generate_pass_image(member_data, event_name, reg_id, team_name):
-    # 1. Background
-    img = create_gradient(PASS_SIZE[0], PASS_SIZE[1], BG_COLOR_1, BG_COLOR_2)
-    draw = ImageDraw.Draw(img)
-    
-    # 2. Decorations
-    draw.rectangle([(0, 0), (30, PASS_SIZE[1])], fill=ACCENT_COLOR)
-    draw.pieslice([(PASS_SIZE[0]-200, -200), (PASS_SIZE[0]+100, 100)], 180, 270, fill=ACCENT_COLOR)
-
-    # 3. Fonts (Now using the smart loader)
-    font_header = load_best_font(60)
-    font_sub = load_best_font(40)
-    font_bold = load_best_font(50)
-    font_small = load_best_font(30)
-
-    # 4. Logos (Now with auto-rounding)
     try:
-        # Adamas Logo
-        logo_uni = Image.open("au_logo.jpg").convert("RGBA")
-        logo_uni = make_rounded_logo(logo_uni.resize((100, 100))) # Resize before pasting
-        img.paste(logo_uni, (60, 40), logo_uni)
-        
-        # GameLiminals Logo
-        logo_club = Image.open("logo.png").convert("RGBA")
-        logo_club = make_rounded_logo(logo_club.resize((100, 100))) # Resize before pasting
-        img.paste(logo_club, (PASS_SIZE[0] - 160, 40), logo_club)
+        # Load the template image
+        img = Image.open("demo_pass.jpeg").convert("RGB")
     except Exception as e:
-        print(f"Logo error: {e}")
-        draw.text((60, 50), "ADAMAS", font=font_small, fill=TEXT_COLOR)
-
-    # 5. Text Details
-    # Event Name
-    draw.text((PASS_SIZE[0]//2, 80), str(event_name).upper(), font=font_header, fill=TEXT_COLOR, anchor="ms")
-    draw.text((PASS_SIZE[0]//2, 140), "OFFICIAL EVENT PASS", font=font_small, fill=ACCENT_COLOR, anchor="ms")
+        st.warning(f"Template demo_pass.jpeg not found, using fallback. Error: {e}")
+        img = create_gradient(1600, 517, BG_COLOR_1, BG_COLOR_2)
     
-    # Divider Line
-    draw.line([(100, 180), (PASS_SIZE[0]-100, 180)], fill="#334155", width=3)
+    draw = ImageDraw.Draw(img)
+    width, height = img.size
 
+    # Load Font
+    try:
+        # User provided font.ttf in the same directory
+        font_path = "font.ttf"
+        font_main = ImageFont.truetype(font_path, 60)
+        font_sub = ImageFont.truetype(font_path, 35)
+        font_id = ImageFont.truetype(font_path, 30)
+    except:
+        font_main = ImageFont.load_default()
+        font_sub = ImageFont.load_default()
+        font_id = ImageFont.load_default()
+
+    # Overlay Text - Adjusting for 1600x517
+    # Assuming the left side is for details and right side for QR
+    
     # Attendee Name
-    draw.text((100, 250), "ATTENDEE", font=font_small, fill="#94a3b8")
-    draw.text((100, 290), str(member_data['name']).upper(), font=font_bold, fill=GOLD_COLOR)
-
+    draw.text((80, 200), str(member_data['name']).upper(), font=font_main, fill="#FFFFFF")
+    
     # Role / Team
-    draw.text((100, 380), "ROLE / TEAM", font=font_small, fill="#94a3b8")
-    role_text = f"{member_data.get('role', 'Participant')} | {team_name}"
-    draw.text((100, 420), role_text, font=font_sub, fill=TEXT_COLOR)
-
+    role_text = f"{member_data.get('role', 'PARTICIPANT')} | {team_name}"
+    draw.text((80, 280), role_text, font=font_sub, fill="#F5D372") # Using GOLD accent
+    
     # Registration ID
-    draw.text((100, 520), "REGISTRATION ID", font=font_small, fill="#94a3b8")
-    draw.text((100, 560), str(reg_id), font=font_sub, fill=TEXT_COLOR)
-
-    # 6. QR Code
-    qr = qrcode.QRCode(box_size=10, border=2)
+    draw.text((80, 420), f"REG ID: {reg_id}", font=font_id, fill="#FFFFFF")
+    
+    # QR Code
+    qr = qrcode.QRCode(box_size=8, border=2)
     qr.add_data(str(reg_id))
     qr.make(fit=True)
-    qr_img = qr.make_image(fill_color="black", back_color="white").resize((220, 220))
+    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
     
-    # Paste QR Code
-    img.paste(qr_img, (PASS_SIZE[0] - 320, 350))
-    draw.text((PASS_SIZE[0] - 210, 600), "SCAN TO VERIFY", font=font_small, fill=ACCENT_COLOR, anchor="ms")
+    # Position QR code on the right side
+    # Resize to fit nicely (e.g., 250x250)
+    qr_img = qr_img.resize((280, 280))
+    img.paste(qr_img, (width - 380, 100))
     
+    # Optional: Event Name overlay if required
+    draw.text((width // 2, 50), str(event_name).upper(), font=font_sub, fill="#FFFFFF", anchor="mt")
+
     return img
 
 def send_single_email(smtp_host, smtp_port, sender_email, sender_pass, to_email, name, event_name, pass_image):
@@ -164,6 +117,7 @@ def send_single_email(smtp_host, smtp_port, sender_email, sender_pass, to_email,
     """
     msg.attach(MIMEText(body, 'html'))
 
+    # Convert PIL Image to Bytes
     img_byte_arr = io.BytesIO()
     pass_image.save(img_byte_arr, format='PNG')
     img_byte_arr.seek(0)
@@ -189,14 +143,17 @@ st.set_page_config(page_title="GameLiminals Mailer", page_icon="🎟️", layout
 st.title("🎟️ GameLiminals Event Pass Mailer")
 st.markdown("Upload the JSON file from the portal to generate and send passes automatically.")
 
+# Sidebar for Credentials
 with st.sidebar:
     st.header("🔐 Email Credentials")
-    st.info("Enter the club's Gmail details here.")
+    st.info("Enter the club's Gmail details here. Use App Password, not login password.")
     sender_email = st.text_input("Sender Email", value="adamasgamingclub@gmail.com")
     sender_pass = st.text_input("App Password", type="password")
+    
     st.divider()
     st.caption("Developed by Sayandeep Pradhan | Technical Lead")
 
+# Main Area
 uploaded_file = st.file_uploader("Upload Registration JSON", type=['json'])
 
 if uploaded_file is not None:
@@ -206,10 +163,9 @@ if uploaded_file is not None:
         
         st.success(f"✅ Loaded {len(registrations)} registrations!")
         
+        # Preview Section
         if len(registrations) > 0:
             st.subheader("👁️ Preview First Pass")
-            st.info("If the text below looks tiny, please download 'Montserrat-Bold.ttf' and rename it to 'font.ttf' in this folder.")
-            
             first_reg = registrations[0]
             first_member = first_reg['members'][0]
             
@@ -219,8 +175,9 @@ if uploaded_file is not None:
                 first_reg.get('registrationID', '000'), 
                 first_reg.get('teamName', 'N/A')
             )
-            st.image(preview_img, caption="Preview of generated pass", width=800)
+            st.image(preview_img, caption="Preview of generated pass", width=600)
 
+        # Sending Section
         st.divider()
         st.subheader("🚀 Bulk Sending")
         
@@ -232,8 +189,9 @@ if uploaded_file is not None:
                 status_text = st.empty()
                 success_count = 0
                 fail_count = 0
-                total = 0
                 
+                total = 0
+                # Calculate total members first
                 for reg in registrations:
                     total += len(reg.get('members', []))
                 
@@ -250,7 +208,11 @@ if uploaded_file is not None:
                         
                         if email:
                             status_text.text(f"Generating & Sending to: {name}...")
+                            
+                            # Generate
                             pass_img = generate_pass_image(member, event_name, reg_id, team_name)
+                            
+                            # Send
                             sent, msg = send_single_email(
                                 "smtp.gmail.com", 465, 
                                 sender_email, sender_pass, 
@@ -263,9 +225,10 @@ if uploaded_file is not None:
                                 st.error(f"Failed to send to {email}: {msg}")
                                 fail_count += 1
                                 
+                            # Update Progress
                             current_idx += 1
-                            progress_bar.progress(min(current_idx / total, 1.0))
-                            time.sleep(1)
+                            progress_bar.progress(current_idx / total)
+                            time.sleep(1) # Safety delay
                             
                 status_text.text("✅ Process Complete!")
                 st.success(f"Done! Sent: {success_count} | Failed: {fail_count}")
