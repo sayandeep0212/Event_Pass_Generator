@@ -42,7 +42,7 @@ def create_gradient(width, height, c1, c2):
 
 def generate_pass_image(member_data, event_name, reg_id, team_name):
     try:
-        # Load the template image
+        # Load the template image (1600x516)
         img = Image.open("demo_pass.jpeg").convert("RGB")
     except Exception as e:
         st.warning(f"Template demo_pass.jpeg not found, using fallback. Error: {e}")
@@ -53,42 +53,43 @@ def generate_pass_image(member_data, event_name, reg_id, team_name):
 
     # Load Font
     try:
-        # User provided font.ttf in the same directory
         font_path = "font.ttf"
-        font_main = ImageFont.truetype(font_path, 60)
+        font_main = ImageFont.truetype(font_path, 65)
         font_sub = ImageFont.truetype(font_path, 35)
         font_id = ImageFont.truetype(font_path, 30)
+        font_title = ImageFont.truetype(font_path, 40)
     except:
         font_main = ImageFont.load_default()
         font_sub = ImageFont.load_default()
         font_id = ImageFont.load_default()
+        font_title = ImageFont.load_default()
 
-    # Overlay Text - Adjusting for 1600x517
-    # Assuming the left side is for details and right side for QR
+    # Overlay Text - Optimized for 1600x516 demo_pass.jpeg
     
-    # Attendee Name
-    draw.text((80, 200), str(member_data['name']).upper(), font=font_main, fill="#FFFFFF")
+    # Event Name - Top Center
+    draw.text((800, 60), str(event_name).upper(), font=font_title, fill="#FFFFFF", anchor="mt")
     
-    # Role / Team
+    # Attendee Name - Main Space Center
+    draw.text((800, 230), str(member_data['name']).upper(), font=font_main, fill="#FFFFFF", anchor="mm")
+    
+    # Role / Team - Below Name
+    # Using GOLD accent color #F5D372
     role_text = f"{member_data.get('role', 'PARTICIPANT')} | {team_name}"
-    draw.text((80, 280), role_text, font=font_sub, fill="#F5D372") # Using GOLD accent
+    draw.text((800, 305), role_text, font=font_sub, fill="#F5D372", anchor="mm") 
     
-    # Registration ID
-    draw.text((80, 420), f"REG ID: {reg_id}", font=font_id, fill="#FFFFFF")
+    # Registration ID - Bottom Main Space
+    draw.text((800, 425), f"REG ID: {reg_id}", font=font_id, fill="#FFFFFF", anchor="mm")
     
-    # QR Code
-    qr = qrcode.QRCode(box_size=8, border=2)
+    # QR Code - Target White Box (Approx X:1228, Y:153, W:244, H:234)
+    qr = qrcode.QRCode(box_size=10, border=1)
     qr.add_data(str(reg_id))
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
     
-    # Position QR code on the right side
-    # Resize to fit nicely (e.g., 250x250)
-    qr_img = qr_img.resize((280, 280))
-    img.paste(qr_img, (width - 380, 100))
-    
-    # Optional: Event Name overlay if required
-    draw.text((width // 2, 50), str(event_name).upper(), font=font_sub, fill="#FFFFFF", anchor="mt")
+    # Resize QR to fit exactly inside the white box
+    qr_img = qr_img.resize((230, 230))
+    # Coordinates to center in the white box
+    img.paste(qr_img, (1235, 155))
 
     return img
 
