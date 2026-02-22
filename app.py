@@ -40,56 +40,111 @@ def create_gradient(width, height, c1, c2):
     base.paste(top, (0, 0), mask)
     return base
 
-def generate_pass_image(member_data, event_name, reg_id, team_name):
-    try:
-        # Load the template image (1600x516)
-        img = Image.open("demo_pass.jpeg").convert("RGB")
-    except Exception as e:
-        st.warning(f"Template demo_pass.jpeg not found, using fallback. Error: {e}")
-        img = create_gradient(1600, 517, BG_COLOR_1, BG_COLOR_2)
+def draw_gaming_background(width, height):
+    # Deep midnight gradient
+    img = create_gradient(width, height, "#020617", "#0f172a")
+    draw = ImageDraw.Draw(img, 'RGBA')
     
-    draw = ImageDraw.Draw(img)
-    width, height = img.size
+    # 1. Subtle Tech Grid
+    grid_spacing = 60
+    grid_color = (99, 102, 241, 30) # Indigo with low alpha
+    for x in range(0, width, grid_spacing):
+        draw.line([(x, 0), (x, height)], fill=grid_color, width=1)
+    for y in range(0, height, grid_spacing):
+        draw.line([(0, y), (width, y)], fill=grid_color, width=1)
+        
+    # 2. Techy Accent Shapes
+    # Corner Accents
+    accent_color = (99, 102, 241, 80)
+    draw.polygon([(0, 0), (150, 0), (0, 150)], fill=accent_color)
+    draw.polygon([(width, height), (width-150, height), (width, height-150)], fill=accent_color)
+    
+    # 3. Glowing Neon Lines
+    cyan_neon = (34, 211, 238, 150)
+    gold_neon = (251, 191, 36, 150)
+    
+    # Top tech bar
+    draw.rectangle([0, 0, width, 80], fill=(15, 23, 42, 200)) # Semi-transparent top bar
+    draw.line([(0, 80), (width, 80)], fill=cyan_neon, width=3)
+    
+    # Side accents
+    draw.line([(40, 120), (40, height-40)], fill=gold_neon, width=2)
+    draw.line([(width-40, 120), (width-40, height-40)], fill=cyan_neon, width=2)
 
-    # Load Font
+    return img
+
+def generate_pass_image(member_data, event_name, reg_id, team_name):
+    # Base Dynamic Gaming Canvas (1600x600 for wide aspect ratio)
+    width, height = 1600, 600
+    img = draw_gaming_background(width, height)
+    draw = ImageDraw.Draw(img, 'RGBA')
+
+    # Load Fonts
     try:
         font_path = "font.ttf"
-        font_main = ImageFont.truetype(font_path, 65)
-        font_sub = ImageFont.truetype(font_path, 35)
-        font_id = ImageFont.truetype(font_path, 30)
-        font_title = ImageFont.truetype(font_path, 40)
+        font_main = ImageFont.truetype(font_path, 80) # Attendee Name
+        font_sub = ImageFont.truetype(font_path, 35)  # Team/Role
+        font_id = ImageFont.truetype(font_path, 32)   # Reg ID
+        font_title = ImageFont.truetype(font_path, 45) # Event Name
+        font_label = ImageFont.truetype(font_path, 22) # Small Labels
     except:
         font_main = ImageFont.load_default()
         font_sub = ImageFont.load_default()
         font_id = ImageFont.load_default()
         font_title = ImageFont.load_default()
+        font_label = ImageFont.load_default()
 
-    # Overlay Text - Optimized for 1600x516 demo_pass.jpeg
+    # 1. Top Section - Event Info
+    draw.text((width//2, 40), str(event_name).upper(), font=font_title, fill="#FFFFFF", anchor="mm")
     
-    # Event Name - Top Center
-    draw.text((800, 60), str(event_name).upper(), font=font_title, fill="#FFFFFF", anchor="mt")
+    # 2. Main Center Section
+    # Glassmorphism effect for the name area
+    draw.rectangle([300, 180, width-300, 420], fill=(30, 41, 59, 180), outline=(99, 102, 241, 100), width=2)
     
-    # Attendee Name - Main Space Center
-    draw.text((800, 230), str(member_data['name']).upper(), font=font_main, fill="#FFFFFF", anchor="mm")
+    # Labels
+    draw.text((320, 200), "ATTENDEE", font=font_label, fill="#94a3b8")
     
-    # Role / Team - Below Name
-    # Using GOLD accent color #F5D372
+    # Attendee Name
+    draw.text((width//2, 280), str(member_data['name']).upper(), font=font_main, fill="#FFFFFF", anchor="mm")
+    
+    # Role / Team
     role_text = f"{member_data.get('role', 'PARTICIPANT')} | {team_name}"
-    draw.text((800, 305), role_text, font=font_sub, fill="#F5D372", anchor="mm") 
-    
-    # Registration ID - Bottom Main Space
-    draw.text((800, 425), f"REG ID: {reg_id}", font=font_id, fill="#FFFFFF", anchor="mm")
-    
-    # QR Code - Target White Box (Approx X:1228, Y:153, W:244, H:234)
+    draw.text((width//2, 360), role_text, font=font_sub, fill="#F5D372", anchor="mm") 
+
+    # 3. Bottom Section - ID and QR
+    # ID Box
+    draw.rectangle([70, height-100, 400, height-40], fill=(15, 23, 42, 200), outline="#fbbf24", width=2)
+    draw.text((235, height-70), f"ID: {reg_id}", font=font_id, fill="#FFFFFF", anchor="mm")
+
+    # QR Box
+    qr_box_size = 180
+    qr_x, qr_y = width - 250, height - 250
+    # Scanner Frame
+    draw.rectangle([qr_x-10, qr_y-10, qr_x+qr_box_size+10, qr_y+qr_box_size+10], fill=(15, 23, 42, 220), outline="#22d3ee", width=3)
+    draw.text((qr_x + qr_box_size//2, qr_y - 30), "SCAN FOR ENTRY", font=font_label, fill="#22d3ee", anchor="mm")
+
+    # QR Generation
     qr = qrcode.QRCode(box_size=10, border=1)
     qr.add_data(str(reg_id))
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+    qr_img = qr_img.resize((qr_box_size, qr_box_size))
+    img.paste(qr_img, (qr_x, qr_y))
+
+    # 4. Logos
+    try:
+        # Club Logo (top left)
+        logo = Image.open("logo.png").convert("RGBA")
+        logo.thumbnail((80, 80))
+        img.paste(logo, (20, 0), logo)
+    except: pass
     
-    # Resize QR to fit exactly inside the white box
-    qr_img = qr_img.resize((230, 230))
-    # Coordinates to center in the white box
-    img.paste(qr_img, (1235, 155))
+    try:
+        # AU Logo (top right)
+        au_logo = Image.open("au_logo.jpg").convert("RGB")
+        au_logo.thumbnail((120, 60))
+        img.paste(au_logo, (width-140, 10))
+    except: pass
 
     return img
 
